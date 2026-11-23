@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1d3b6e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Hebrew Review</title>
+<style>
+:root{--bg:#f5f6f8;--surface:#fff;--alt:#e9edf3;--ink:#16202c;--soft:#5d6b7a;--line:#d6dde6;--accent:#2457a6;--accent-ink:#fff;--again:#c04a3d;--got:#1f7a55;--r:16px;color-scheme:light dark;-webkit-text-size-adjust:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#0f141b;--surface:#18212c;--alt:#212d3b;--ink:#e8eef5;--soft:#97a6b6;--line:#2b3949;--accent:#6c9ae6;--accent-ink:#0b1626;--again:#e0705f;--got:#4cba8b}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{background:var(--bg);color:var(--ink);line-height:1.45}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;border:0;background:none}
+.screen{max-width:620px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;padding:max(20px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom))}
+.eyebrow{letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-size:.8rem;font-weight:600;margin:0}
+h1{margin:4px 0 6px;font-size:2rem;line-height:1.15}.sub{color:var(--soft);margin:0 0 20px;font-size:.95rem}
+.list{display:flex;flex-direction:column;gap:10px}
+.sec{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;min-height:56px;text-align:left;width:100%}
+.sec:active{background:var(--alt)}.sec b{font-size:1.05rem}.sec span{color:var(--soft);font-size:.85rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sec--all{border-color:var(--accent)}
+.toggle{display:flex;gap:6px;background:var(--alt);border-radius:999px;padding:4px;margin:0 0 16px}
+.toggle button{flex:1;border-radius:999px;padding:9px 8px;font-size:.88rem;color:var(--soft)}.toggle button.on{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px #0002}
+.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;color:var(--soft);font-size:.9rem}
+.bar button{color:var(--accent);padding:8px 0;font-weight:600}
+.card{flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:24px 20px;min-height:320px;text-align:center}
+.q{font-size:1.45rem;font-weight:600}.tr{font-size:1.7rem;font-weight:700;color:var(--accent)}.he{font-size:1.5rem;direction:rtl;color:var(--ink)}.n{color:var(--soft);font-size:.95rem}
+.hint{color:var(--soft);font-size:.9rem}
+.play{align-self:center;display:inline-flex;align-items:center;gap:8px;background:var(--alt);border-radius:999px;padding:10px 18px;font-weight:600}
+.foot{display:flex;gap:10px;margin-top:14px}.foot button{flex:1;min-height:56px;border-radius:var(--r);font-weight:700;font-size:1.05rem}
+.primary{background:var(--accent);color:var(--accent-ink)}.again{background:var(--again);color:#fff}.got{background:var(--got);color:#fff}
+.done{text-align:center;display:flex;flex-direction:column;gap:14px;justify-content:center;flex:1}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+"use strict";
+const CARDS = /*CARDS*/[], NAMES = /*NAMES*/{};
+const root = document.getElementById("root");
+const get = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } };
+const set = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} };
+let mode = get("hr.mode", "en"); // en: English -> Hebrew; he: hear Hebrew -> English
+const audio = new Audio();
+const play = c => { audio.src = "audio/" + c.id + ".mp3"; audio.play().catch(() => {}); };
+const esc = s => s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] } return a; };
+
+function home() {
+  const secs = [...new Set(CARDS.map(c => c.s))];
+  root.innerHTML = `<main class="screen"><p class="eyebrow">Get-around Hebrew</p><h1>Hebrew Review</h1>
+  <p class="sub">${CARDS.length} cards. <b>kh</b> is the throaty sound, as in Bach. Men's forms by default.</p>
+  <div class="toggle"><button data-m="en" class="${mode === "en" ? "on" : ""}">English → Hebrew</button><button data-m="he" class="${mode === "he" ? "on" : ""}">Listen → English</button></div>
+  <div class="list"><button class="sec sec--all" data-s=""><b>Everything, shuffled</b><span>${CARDS.length}</span></button>
+  ${secs.map(s => `<button class="sec" data-s="${s}"><b>${NAMES[s] || s}</b><span>${CARDS.filter(c => c.s === s).length}</span></button>`).join("")}</div></main>`;
+  root.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { mode = b.dataset.m; set("hr.mode", mode); home(); });
+  root.querySelectorAll("[data-s]").forEach(b => b.onclick = () => study(b.dataset.s));
+}
+
+function study(sec) {
+  let queue = shuffle(CARDS.filter(c => !sec || c.s === sec)), total = queue.length, got = 0, shown = false;
+  const title = sec ? (NAMES[sec] || sec) : "Everything";
+  function render() {
+    if (!queue.length) {
+      root.innerHTML = `<main class="screen"><div class="done"><h1>Done</h1><p class="sub">All ${total} cards in ${esc(title)}.</p>
+      <div class="foot"><button class="primary" id="again">Go again</button><button class="sec" id="home" style="justify-content:center">Sections</button></div></div></main>`;
+      root.querySelector("#again").onclick = () => study(sec); root.querySelector("#home").onclick = home; return;
+    }
+    const c = queue[0];
+    const answer = `<div class="tr">${esc(c.tr)}</div><div class="he" lang="he">${esc(c.he)}</div>${c.n ? `<div class="n">${esc(c.n)}</div>` : ""}`;
+    const front = mode === "en" ? `<div class="q">${esc(c.en)}</div>` : `<button class="play" id="p">▶ Play</button>`;
+    const body = shown
+      ? (mode === "en" ? front + answer + `<button class="play" id="p">▶ Play</button>` : `<div class="q">${esc(c.en)}</div>` + answer + `<button class="play" id="p">▶ Play</button>`)
+      : front + `<div class="hint">Tap to reveal</div>`;
+    root.innerHTML = `<main class="screen"><div class="bar"><button id="home">‹ Sections</button><span>${esc(title)} · ${got}/${total}</span></div>
+    <div class="card" id="card">${body}</div>
+    <div class="foot">${shown ? `<button class="again" id="a">Again</button><button class="got" id="g">Got it</button>` : `<button class="primary" id="r">Show answer</button>`}</div></main>`;
+    root.querySelector("#home").onclick = home;
+    const p = root.querySelector("#p"); if (p) p.onclick = e => { e.stopPropagation(); play(c); };
+    if (!shown) {
+      if (mode === "he") play(c);
+      const reveal = () => { shown = true; render(); if (mode === "en") play(c); };
+      root.querySelector("#r").onclick = reveal; root.querySelector("#card").onclick = reveal;
+    } else {
+      root.querySelector("#a").onclick = () => { queue.splice(Math.min(queue.length, 4), 0, queue.shift()); shown = false; render(); };
+      root.querySelector("#g").onclick = () => { queue.shift(); got++; shown = false; render(); };
+    }
+  }
+  render();
+}
+home();
+</script>
+</body>
+</html>
