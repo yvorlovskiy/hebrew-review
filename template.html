@@ -37,10 +37,14 @@ h1{margin:4px 0 6px;font-size:2rem;line-height:1.15}.sub{color:var(--soft);margi
 <script>
 "use strict";
 const CARDS = /*CARDS*/[], NAMES = /*NAMES*/{};
+const BY = Object.fromEntries(CARDS.map(c => [c.id, c]));
 const root = document.getElementById("root");
 const get = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } };
 const set = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} };
-let mode = get("hr.mode", "en"); // en: English -> Hebrew; he: hear Hebrew -> English
+let mode = get("hr.mode", "en");          // en: English -> Hebrew; he: hear Hebrew -> English
+let prog = get("hr.progress", {});        // id -> {g: times got, a: times again, t: last seen ms}
+const saveProg = () => set("hr.progress", prog);
+const known = c => (prog[c.id]?.g || 0) > 0 && (prog[c.id].g >= (prog[c.id].a || 0));
 const audio = new Audio();
 const play = c => { audio.src = "audio/" + c.id + ".mp3"; audio.play().catch(() => {}); };
 const esc = s => s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
@@ -48,31 +52,49 @@ const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.f
 
 function home() {
   const secs = [...new Set(CARDS.map(c => c.s))];
+  const sess = get("hr.session", null);
+  const kn = cs => cs.filter(known).length;
+  const resume = sess && sess.queue.length
+    ? `<button class="sec sec--all" id="resume"><b>Resume: ${esc(sess.title)}</b><span>${sess.got}/${sess.total}</span></button>` : "";
   root.innerHTML = `<main class="screen"><p class="eyebrow">Get-around Hebrew</p><h1>Hebrew Review</h1>
-  <p class="sub">${CARDS.length} cards. <b>kh</b> is the throaty sound, as in Bach. Men's forms by default.</p>
+  <p class="sub">${kn(CARDS)} of ${CARDS.length} known. <b>kh</b> is the throaty sound, as in Bach. Men's forms by default.</p>
   <div class="toggle"><button data-m="en" class="${mode === "en" ? "on" : ""}">English → Hebrew</button><button data-m="he" class="${mode === "he" ? "on" : ""}">Listen → English</button></div>
-  <div class="list"><button class="sec sec--all" data-s=""><b>Everything, shuffled</b><span>${CARDS.length}</span></button>
-  ${secs.map(s => `<button class="sec" data-s="${s}"><b>${NAMES[s] || s}</b><span>${CARDS.filter(c => c.s === s).length}</span></button>`).join("")}</div></main>`;
+  <div class="list">${resume}<button class="sec" data-s=""><b>Everything, weakest first</b><span>${kn(CARDS)}/${CARDS.length}</span></button>
+  ${secs.map(s => { const cs = CARDS.filter(c => c.s === s); return `<button class="sec" data-s="${s}"><b>${NAMES[s] || s}</b><span>${kn(cs)}/${cs.length}</span></button>`; }).join("")}</div>
+  <p class="sub" style="margin-top:20px;text-align:center"><button id="reset" style="color:var(--soft);text-decoration:underline;font-size:.85rem">Reset progress</button></p></main>`;
   root.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { mode = b.dataset.m; set("hr.mode", mode); home(); });
-  root.querySelectorAll("[data-s]").forEach(b => b.onclick = () => study(b.dataset.s));
+  root.querySelectorAll("[data-s]").forEach(b => b.onclick = () => study(newSession(b.dataset.s)));
+  const r = root.querySelector("#resume"); if (r) r.onclick = () => study(sess);
+  root.querySelector("#reset").onclick = () => { if (confirm("Clear all progress?")) { prog = {}; saveProg(); set("hr.session", null); home(); } };
 }
 
-function study(sec) {
-  let queue = shuffle(CARDS.filter(c => !sec || c.s === sec)), total = queue.length, got = 0, shown = false;
-  const title = sec ? (NAMES[sec] || sec) : "Everything";
+// Unknown cards first (fewest gets, most misses), shuffled within each tier.
+function newSession(sec) {
+  const cs = shuffle(CARDS.filter(c => !sec || c.s === sec));
+  const score = c => { const p = prog[c.id] || {}; return (p.g || 0) - (p.a || 0); };
+  cs.sort((x, y) => score(x) - score(y));
+  return { sec, title: sec ? (NAMES[sec] || sec) : "Everything", queue: cs.map(c => c.id), got: 0, total: cs.length };
+}
+
+function study(S) {
+  S.queue = S.queue.filter(id => BY[id]);   // drop cards removed since the session was saved
+  let shown = false;
+  const save = () => set("hr.session", S.queue.length ? S : null);
+  save();
   function render() {
-    if (!queue.length) {
-      root.innerHTML = `<main class="screen"><div class="done"><h1>Done</h1><p class="sub">All ${total} cards in ${esc(title)}.</p>
+    if (!S.queue.length) {
+      set("hr.session", null);
+      root.innerHTML = `<main class="screen"><div class="done"><h1>Done</h1><p class="sub">All ${S.total} cards in ${esc(S.title)}.</p>
       <div class="foot"><button class="primary" id="again">Go again</button><button class="sec" id="home" style="justify-content:center">Sections</button></div></div></main>`;
-      root.querySelector("#again").onclick = () => study(sec); root.querySelector("#home").onclick = home; return;
+      root.querySelector("#again").onclick = () => study(newSession(S.sec)); root.querySelector("#home").onclick = home; return;
     }
-    const c = queue[0];
+    const c = BY[S.queue[0]];
     const answer = `<div class="tr">${esc(c.tr)}</div><div class="he" lang="he">${esc(c.he)}</div>${c.n ? `<div class="n">${esc(c.n)}</div>` : ""}`;
-    const front = mode === "en" ? `<div class="q">${esc(c.en)}</div>` : `<button class="play" id="p">▶ Play</button>`;
+    const playBtn = `<button class="play" id="p">▶ Play</button>`;
     const body = shown
-      ? (mode === "en" ? front + answer + `<button class="play" id="p">▶ Play</button>` : `<div class="q">${esc(c.en)}</div>` + answer + `<button class="play" id="p">▶ Play</button>`)
-      : front + `<div class="hint">Tap to reveal</div>`;
-    root.innerHTML = `<main class="screen"><div class="bar"><button id="home">‹ Sections</button><span>${esc(title)} · ${got}/${total}</span></div>
+      ? `<div class="q">${esc(c.en)}</div>` + answer + playBtn
+      : (mode === "en" ? `<div class="q">${esc(c.en)}</div>` : playBtn) + `<div class="hint">Tap to reveal</div>`;
+    root.innerHTML = `<main class="screen"><div class="bar"><button id="home">‹ Sections</button><span>${esc(S.title)} · ${S.got}/${S.total}</span></div>
     <div class="card" id="card">${body}</div>
     <div class="foot">${shown ? `<button class="again" id="a">Again</button><button class="got" id="g">Got it</button>` : `<button class="primary" id="r">Show answer</button>`}</div></main>`;
     root.querySelector("#home").onclick = home;
@@ -82,8 +104,9 @@ function study(sec) {
       const reveal = () => { shown = true; render(); if (mode === "en") play(c); };
       root.querySelector("#r").onclick = reveal; root.querySelector("#card").onclick = reveal;
     } else {
-      root.querySelector("#a").onclick = () => { queue.splice(Math.min(queue.length, 4), 0, queue.shift()); shown = false; render(); };
-      root.querySelector("#g").onclick = () => { queue.shift(); got++; shown = false; render(); };
+      const mark = k => { const q = prog[c.id] || (prog[c.id] = {}); q[k] = (q[k] || 0) + 1; q.t = Date.now(); saveProg(); };
+      root.querySelector("#a").onclick = () => { mark("a"); const id = S.queue.shift(); S.queue.splice(Math.min(S.queue.length, 3), 0, id); shown = false; save(); render(); };
+      root.querySelector("#g").onclick = () => { mark("g"); S.queue.shift(); S.got++; shown = false; save(); render(); };
     }
   }
   render();
